@@ -1,0 +1,13 @@
+url = "http://localhost:8080/concorrente1.txt"
+request = "POST"
+data-binary = "@files/teste.txt"
+next
+
+url = "http://localhost:8080/concorrente2.jpg"
+request = "POST"
+data-binary = "@files/tarot.jpg"
+next
+
+url = "http://localhost:8080/concorrente3.jpg"
+request = "POST"
+data-binary = "@files/tarot_baixado.jpg"
