@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"io"
 	"load-balancer/internal/httpcore"
 	"log"
 	"net"
+	"strconv"
 )
 
 func forwardToBackend(connection net.Conn, Request httpcore.Request, reader *bufio.Reader) {
@@ -18,6 +20,8 @@ func forwardToBackend(connection net.Conn, Request httpcore.Request, reader *buf
 		}
 		return
 	}
+
+	defer connectionBackend.Close()
 
 	message := Request.Method + " " + Request.Uri + " " + Request.Version + "\r\n"
 
@@ -36,4 +40,45 @@ func forwardToBackend(connection net.Conn, Request httpcore.Request, reader *buf
 		return
 	}
 
+	if Request.Method == "POST" {
+		numbytes, err := strconv.Atoi(Request.Header["Content-Length"])
+		if err != nil {
+			log.Println("Error while converting")
+			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
+			if err != nil {
+			log.Println("error converting", err)
+			return
+		}
+		buffer := make([]byte, numbytes)
+		_, err = io.ReadFull(reader, buffer)
+		if err != nil {
+
+			log.Println("error while take bytes", err)
+			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
+			if err != nil {
+				log.Println("error of Bad Request")
+				return
+			}
+			return
+		}
+		_, err = connectionBackend.Write(buffer)
+		if err != nil {
+			log.Println("error sending response of body", err)
+			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
+			if err != nil {
+			log.Println("error converting", err)
+			return
+		}
+
+	}
+
+	_, err = io.Copy(connection, connectionBackend)
+	if err != nil {
+		log.Println("error sending response")
+		err = httpcore.SendResponse(connection, 500, "Internal Server Error", "text/html", "500 Internal Server Error")
+		if err != nil {
+			log.Println("error while sending response form backend to client")
+			return
+		}
+	}
 }
