@@ -6,43 +6,31 @@ import (
 	"load-balancer/internal/httpcore"
 	"log"
 	"net"
+	"os"
 	"strconv"
 )
 
-func forwardbody (reader *bufio.Reader, connectionBackend net.Conn, contentLength string) error{
+func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength string) error {
 	numbytes, err := strconv.Atoi(contentLength)
 	if err != nil {
 		log.Println("Error while converting")
-		returncd ..
+		return err
 	}
-	buffer := make([]byte,numbytes)
+	buffer := make([]byte, numbytes)
 	_, err = io.ReadFull(reader, buffer)
 	if err != nil {
 		log.Println("error while take bytes")
-		err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
-			if err != nil {
-				log.Println("Error of Bad Requesting")
-				return
-			}
+		return err
 	}
 	_, err = connectionBackend.Write(buffer)
 	if err != nil {
 		log.Println("error sending resposne response of body")
-		err = httpcore.ParseRequest(connection, 400, "Bad Request", "text/html", "400 Bad Request")
-		if err != nil {
-			log.Println("error converting")
-			return
-		}
+		return err
 	}
-	_, err = io.Copy(connection, connectionBackend)
-	if err != nil{
-		log.Println("error sending response")
-		return
-	}
+	return nil
 }
 
-
-func forwardToBackend(connection net.Conn, Request httpcore.Request, reader *bufio.Reader) {
+func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *bufio.Reader) {
 	connectionBackend, err := net.Dial("tcp", "localhost:8001")
 	if err != nil {
 		log.Println("error sending connection to backend")
@@ -74,43 +62,46 @@ func forwardToBackend(connection net.Conn, Request httpcore.Request, reader *buf
 	}
 
 	if Request.Method == "POST" {
-		numbytes, err := strconv.Atoi(Request.Header["Content-Length"])
+		err = forwardbody(reader, connectionBackend, Request.Header["Content-Length"])
 		if err != nil {
-			log.Println("Error while converting")
+			log.Println("Error sending response")
 			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
 			if err != nil {
-				log.Println("error converting", err)
-				return
-		}
-		buffer := make([]byte, numbytes)
-		_, err = io.ReadFull(reader, buffer)
-		if err != nil {
-
-			log.Println("error while take bytes", err)
-			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
-			if err != nil {
-				log.Println("error of Bad Request")
+				log.Println("Error sending response")
 				return
 			}
-			
 		}
 
 	}
-		_, err = connectionBackend.Write(buffer)
-		if err != nil {
-			log.Println("error sending response of body", err)
-			err = httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
-			if err != nil {
-				log.Println("error converting", err)
-				return
-			}
-
-		}	
-	
 
 	_, err = io.Copy(connection, connectionBackend)
 	if err != nil {
 		log.Println("error sending response")
 		return
 	}
+}
+
+const (
+	HOST = "localhost"
+	PORT = "8080"
+	TYPE = "tcp"
+)
+
+func main() {
+	listen, err := net.Listen(TYPE, HOST+":"+PORT)
+	if err != nil {
+		log.Println("Error", err)
+		os.Exit(1)
+	}
+	defer listen.Close()
+
+	for {
+		connection, err := listen.Accept()
+		if err != nil {
+			log.Println("Error stablishing connection", err)
+			continue
+		}
+		go httpcore.Accepting_con(connection, forwardToBackend)
+	}
+
 }

@@ -125,7 +125,7 @@ func reading_methods(Request httpcore.Request, connection net.Conn, reader *bufi
 
 const (
 	HOST = "localhost"
-	PORT = "8080"
+	PORT = "8001"
 	TYPE = "tcp"
 )
 
