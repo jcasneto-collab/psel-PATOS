@@ -8,7 +8,16 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync/atomic"
 )
+
+var Backends = []string{"localhost:8081", "localhost:8082", "localhost:8083"}
+var counter uint64
+
+func nextBackend() string {
+	idx := (atomic.AddUint64(&counter, 1) - 1) % uint64(len(Backends))
+	return Backends[idx]
+}
 
 func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength string) error {
 	numbytes, err := strconv.Atoi(contentLength)
@@ -31,7 +40,7 @@ func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength
 }
 
 func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *bufio.Reader) {
-	connectionBackend, err := net.Dial("tcp", "localhost:8001")
+	connectionBackend, err := net.Dial("tcp", nextBackend())
 	if err != nil {
 		log.Println("error sending connection to backend")
 		err = httpcore.SendResponse(connection, 500, "Internal Server Error", "text/html", "500 Internal Server Error")

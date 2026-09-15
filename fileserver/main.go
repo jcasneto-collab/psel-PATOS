@@ -125,11 +125,19 @@ func reading_methods(Request httpcore.Request, connection net.Conn, reader *bufi
 
 const (
 	HOST = "localhost"
-	PORT = "8001"
 	TYPE = "tcp"
 )
 
 func main() {
+	var PORT string
+
+	if len(os.Args) < 2 {
+		log.Println("Error")
+		os.Exit(1)
+	} else {
+		PORT = os.Args[1]
+	}
+
 	listen, err := net.Listen(TYPE, HOST+":"+PORT)
 	if err != nil {
 		log.Print("Error", err)
