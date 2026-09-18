@@ -1,14 +1,10 @@
 url = "http://localhost:8080/tarot.jpg"
-output = "1.jpg"
+output = "stress_teste1.jpg"
+next
 
 url = "http://localhost:8080/tarot.jpg"
-output = "2.jpg"
+output = "stress_teste2.jpg"
+next
 
 url = "http://localhost:8080/tarot.jpg"
-output = "3.jpg"
-
-url = "http://localhost:8080/tarot.jpg"
-output = "4.jpg"
-
-url = "http://localhost:8080/tarot.jpg"
-output = "5.jpg"
+output = "stress_teste3.jpg"

@@ -1,13 +1,10 @@
-url = "http://localhost:8080/concorrente1.txt"
-request = "POST"
-data-binary = "@files/teste.txt"
+url = "http://localhost:8080/stress_up1.jpg"
+data-binary = "@fileserver/files/tarot.jpg"
 next
 
-url = "http://localhost:8080/concorrente2.jpg"
-request = "POST"
-data-binary = "@files/tarot.jpg"
+url = "http://localhost:8080/stress_up2.jpg"
+data-binary = "@fileserver/files/tarot.jpg"
 next
 
-url = "http://localhost:8080/concorrente3.jpg"
-request = "POST"
-data-binary = "@files/tarot_baixado.jpg"
+url = "http://localhost:8080/stress_up3.jpg"
+data-binary = "@fileserver/files/tarot.jpg"

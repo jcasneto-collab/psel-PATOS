@@ -9,14 +9,52 @@ import (
 	"os"
 	"strconv"
 	"sync/atomic"
+	"time"
 )
 
-var Backends = []string{"localhost:8081", "localhost:8082", "localhost:8083"}
+type Backend struct {
+	addr    string
+	isAlive atomic.Bool
+}
+
+var Backends []*Backend
+
 var counter uint64
 
-func nextBackend() string {
-	idx := (atomic.AddUint64(&counter, 1) - 1) % uint64(len(Backends))
-	return Backends[idx]
+func HealthCheck(endereco *Backend) {
+	connection, err := net.DialTimeout("tcp", endereco.addr, 1*time.Second)
+	if err != nil {
+		endereco.isAlive.Store(false)
+		log.Println("Error with Backend")
+		return
+	}
+	endereco.isAlive.Store(true)
+	connection.Close()
+
+}
+
+func runHealthcheck() {
+
+	for {
+		for _, backend := range Backends {
+			go HealthCheck(backend)
+		}
+		time.Sleep(5 * time.Second)
+
+	}
+}
+
+func nextBackend() *Backend {
+
+	for i := 0; i < len(Backends); i++ {
+		idx := (atomic.AddUint64(&counter, 1) - 1) % uint64(len(Backends))
+		if Backends[idx].isAlive.Load() == true {
+			return Backends[idx]
+		}
+
+	}
+	return nil
+
 }
 
 func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength string) error {
@@ -40,7 +78,18 @@ func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength
 }
 
 func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *bufio.Reader) {
-	connectionBackend, err := net.Dial("tcp", nextBackend())
+
+	chosedBackend := nextBackend()
+	if chosedBackend == nil {
+		log.Println("All Backends is down")
+		err := httpcore.SendResponse(connection, 503, "Service Unavaliable", "text/html", "503 Service Unavaliable")
+		if err != nil {
+			log.Println("Error whit Backends")
+			return
+		}
+		return
+	}
+	connectionBackend, err := net.Dial("tcp", chosedBackend.addr)
 	if err != nil {
 		log.Println("error sending connection to backend")
 		err = httpcore.SendResponse(connection, 500, "Internal Server Error", "text/html", "500 Internal Server Error")
@@ -97,12 +146,20 @@ const (
 )
 
 func main() {
+	Backends = append(Backends, &Backend{addr: "localhost:8081"}, &Backend{addr: "localhost:8082"}, &Backend{addr: "localhost:8083"})
+
+	for i := 0; i < 3; i++ {
+		Backends[i].isAlive.Store(true)
+	}
+
 	listen, err := net.Listen(TYPE, HOST+":"+PORT)
 	if err != nil {
 		log.Println("Error", err)
 		os.Exit(1)
 	}
 	defer listen.Close()
+
+	go runHealthcheck()
 
 	for {
 		connection, err := listen.Accept()
