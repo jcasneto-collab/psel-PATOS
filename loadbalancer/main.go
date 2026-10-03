@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"io"
 	"load-balancer/internal/httpcore"
 	"log"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -79,6 +81,8 @@ func forwardbody(reader *bufio.Reader, connectionBackend net.Conn, contentLength
 
 func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *bufio.Reader) {
 
+	startedTime := time.Now()
+
 	chosedBackend := nextBackend()
 	if chosedBackend == nil {
 		log.Println("All Backends is down")
@@ -89,6 +93,7 @@ func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *buf
 		}
 		return
 	}
+
 	connectionBackend, err := net.Dial("tcp", chosedBackend.addr)
 	if err != nil {
 		log.Println("error sending connection to backend")
@@ -132,27 +137,60 @@ func forwardToBackend(Request httpcore.Request, connection net.Conn, reader *buf
 
 	}
 
-	_, err = io.Copy(connection, connectionBackend)
+	readerBackend := bufio.NewReader(connectionBackend)
+
+	statusline, err := readerBackend.ReadString('\n')
+	if err != nil {
+		log.Println("error while reading request line")
+		return
+	}
+
+	messager := statusline
+	fields := strings.Split(statusline, " ")
+	statuscode := fields[1]
+	statuscodeint, err := strconv.Atoi(statuscode)
+	if err != nil {
+		log.Println("error converting")
+		return
+	}
+	messageb = []byte(messager)
+	_, err = connection.Write(messageb)
+	if err != nil {
+		log.Println("error sending answer")
+		return
+	}
+
+	_, err = io.Copy(connection, readerBackend)
 	if err != nil {
 		log.Println("error sending response")
 		return
 	}
+
+	passedTime := time.Since(startedTime)
+
+	log.Println(chosedBackend.addr, statuscodeint, passedTime)
+
 }
 
 const (
 	HOST = "localhost"
-	PORT = "8080"
 	TYPE = "tcp"
 )
 
 func main() {
-	Backends = append(Backends, &Backend{addr: "localhost:8081"}, &Backend{addr: "localhost:8082"}, &Backend{addr: "localhost:8083"})
+	portFlag := flag.String("port", "8080", "Porta do Loadbalancer")
+	backendFlag := flag.String("backends", "localhost:8081,localhost:8082,localhost:8083", "Endereço dos Backends")
+	flag.Parse()
+	flagBackendsplited := strings.Split(*backendFlag, ",")
 
-	for i := 0; i < 3; i++ {
+	for _, addr := range flagBackendsplited {
+		Backends = append(Backends, &Backend{addr: addr})
+	}
+	for i := 0; i < len(flagBackendsplited); i++ {
 		Backends[i].isAlive.Store(true)
 	}
 
-	listen, err := net.Listen(TYPE, HOST+":"+PORT)
+	listen, err := net.Listen(TYPE, HOST+":"+*portFlag)
 	if err != nil {
 		log.Println("Error", err)
 		os.Exit(1)
