@@ -12,6 +12,27 @@ import (
 	"strings"
 )
 
+func archivelist() (string, error) {
+	dir, err := os.ReadDir("files")
+	if err != nil {
+		return "", err
+	} else {
+		var lista strings.Builder
+		for _, arquivo := range dir {
+			if arquivo.IsDir() == true {
+				continue
+			} else {
+				nomearquivo := arquivo.Name()
+				lista.WriteString("<li><a href=\"/" + nomearquivo + "\">" + nomearquivo + "</a></li>")
+
+			}
+
+		}
+		return lista.String(), nil
+
+	}
+}
+
 func reading_methods(Request httpcore.Request, connection net.Conn, reader *bufio.Reader) {
 	if Request.Method == "GET" || Request.Method == "HEAD" {
 		log.Println("Method:", Request.Method)
@@ -19,16 +40,10 @@ func reading_methods(Request httpcore.Request, connection net.Conn, reader *bufi
 		log.Println("Version: ", Request.Version)
 		log.Println("Headers:", Request.Header)
 
-		caminho := "files" + Request.Uri
-		if strings.Contains(Request.Uri, "..") {
-			err := httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
-			if err != nil {
-				log.Println("path transversal")
-				return
-			}
-			return
-		} else {
+		if Request.Uri == "/" {
+			caminho := "files/index.html"
 			caminhob, err := os.ReadFile(caminho)
+
 			caminhoext := filepath.Ext(caminho)
 			content, existe := mimemaps[caminhoext]
 			if existe == false {
@@ -44,12 +59,60 @@ func reading_methods(Request httpcore.Request, connection net.Conn, reader *bufi
 					return
 				}
 				return
+			}
+
+			lista, err := archivelist()
+			if err != nil {
+				err = httpcore.SendResponse(connection, 500, "Internal Server Error", "text/html", "500 Internal Server Error")
+				if err != nil {
+					log.Println("Error sendind response")
+					return
+				}
+				return
 			} else {
 				caminhoString := string(caminhob)
+				stringfinal := strings.Replace(caminhoString, "<!-- lista de arquivos sera inserida aqui-->", lista, 1)
 				log.Println(caminhoString)
-				err = httpcore.SendResponse(connection, 200, "OK", content, caminhoString)
+				err = httpcore.SendResponse(connection, 200, "OK", content, stringfinal)
 				if err != nil {
-					log.Println("error sending archive")
+					log.Println(stringfinal)
+				}
+			}
+		} else {
+
+			caminho := "files" + Request.Uri
+
+			if strings.Contains(Request.Uri, "..") {
+				err := httpcore.SendResponse(connection, 400, "Bad Request", "text/html", "400 Bad Request")
+				if err != nil {
+					log.Println("path transversal")
+					return
+				}
+				return
+			} else {
+				caminhob, err := os.ReadFile(caminho)
+				caminhoext := filepath.Ext(caminho)
+				content, existe := mimemaps[caminhoext]
+				if existe == false {
+					content = "application/octet-stream"
+				}
+
+				if err != nil {
+					log.Println("not found archive", err)
+
+					err = httpcore.SendResponse(connection, 404, "not found", "text/html", "404 not found")
+					if err != nil {
+						log.Println("error requesting")
+						return
+					}
+					return
+				} else {
+					caminhoString := string(caminhob)
+					log.Println(caminhoString)
+					err = httpcore.SendResponse(connection, 200, "OK", content, caminhoString)
+					if err != nil {
+						log.Println("error sending archive")
+					}
 				}
 			}
 		}
